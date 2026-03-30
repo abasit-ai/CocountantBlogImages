@@ -1,7 +1,8 @@
 {
   "name": "cocountant-blog-preview-generator",
   "version": "1.0.0",
-  "description": "CoCountant Blog Preview Image Generator with Shutterstock integration",
+  "description": "CoCountant Blog Preview Image Generator",
+  "type": "module",
   "engines": {
     "node": ">=18.0.0"
   }
