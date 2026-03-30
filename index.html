@@ -237,6 +237,37 @@
   .thumb-source.unsplash { background: rgba(0,0,0,0.55); color: #fff; }
   .thumb-source.pexels   { background: rgba(5,187,117,0.8); color: #fff; }
 
+  /* Featured image controls */
+  .feat-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+
+  .feat-controls .zoom-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    min-width: 44px;
+  }
+
+  .feat-controls input[type="range"] {
+    flex: 1;
+    min-width: 80px;
+    accent-color: var(--accent);
+    height: 4px;
+    cursor: pointer;
+  }
+
+  .canvas-wrap.interactive {
+    cursor: grab;
+  }
+
+  .canvas-wrap.interactive:active {
+    cursor: grabbing;
+  }
+
   ::-webkit-scrollbar { width: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
@@ -308,9 +339,17 @@
         </div>
         <button class="btn btn-primary" onclick="dl('c-featured','cocountant-featured.png')">Download PNG</button>
       </div>
-      <div class="canvas-wrap">
+      <div class="canvas-wrap interactive" id="feat-wrap">
         <canvas id="c-featured"></canvas>
       </div>
+      <div class="feat-controls">
+        <span class="zoom-label" id="feat-zoom-label">100%</span>
+        <button class="btn btn-outline" style="padding:6px 10px;font-size:13px;" onclick="featZoom(-0.1)">−</button>
+        <input type="range" id="feat-zoom-slider" min="50" max="300" value="100" step="1" oninput="featZoomSlider(this.value)" />
+        <button class="btn btn-outline" style="padding:6px 10px;font-size:13px;" onclick="featZoom(0.1)">+</button>
+        <button class="btn btn-outline" style="padding:6px 12px;font-size:12px;margin-left:4px;" onclick="featReset()">Reset</button>
+      </div>
+      <p style="font-size:11px;color:var(--text-dim);margin-top:6px;">Drag to pan · Scroll to zoom</p>
     </div>
 
     <div>
@@ -451,12 +490,140 @@ function drawPreview() {
   else placeholder(ctx, PH_X, PH_Y, PH_W, PH_H);
 }
 
-function drawFeatured() {
-  const id = 'c-featured', w = 810, h = 267, ctx = CTX[id];
-  clear(id);
-  if (photoImg) coverDraw(ctx, photoImg, 0, 0, w, h);
-  else placeholder(ctx, 0, 0, w, h);
+// ── Featured image transform state ────────────────────────────────────────
+const feat = {
+  scale: 1,    // zoom multiplier (1 = cover-fit baseline)
+  ox: 0,       // x offset from centre (logical px)
+  oy: 0,       // y offset from centre (logical px)
+};
+
+const FEAT_W = 810, FEAT_H = 267;
+
+// Recompute cover-fit base scale whenever image changes
+function featBaseScale() {
+  if (!photoImg) return 1;
+  const iw = photoImg.naturalWidth  || photoImg.width;
+  const ih = photoImg.naturalHeight || photoImg.height;
+  return Math.max(FEAT_W / iw, FEAT_H / ih);
 }
+
+function drawFeatured() {
+  const id = 'c-featured', ctx = CTX[id];
+  clear(id);
+
+  if (!photoImg) { placeholder(ctx, 0, 0, FEAT_W, FEAT_H); return; }
+
+  const base = featBaseScale();
+  const sc   = base * feat.scale;
+  const iw   = photoImg.naturalWidth  || photoImg.width;
+  const ih   = photoImg.naturalHeight || photoImg.height;
+  const dw   = iw * sc, dh = ih * sc;
+
+  // Centre + manual offset
+  const dx = (FEAT_W - dw) / 2 + feat.ox;
+  const dy = (FEAT_H - dh) / 2 + feat.oy;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, 0, FEAT_W, FEAT_H);
+  ctx.clip();
+  ctx.drawImage(photoImg, dx, dy, dw, dh);
+  ctx.restore();
+}
+
+// Update zoom label + slider in sync
+function featSyncUI() {
+  const pct = Math.round(feat.scale * 100);
+  document.getElementById('feat-zoom-label').textContent = pct + '%';
+  document.getElementById('feat-zoom-slider').value = pct;
+}
+
+function featZoom(delta) {
+  feat.scale = Math.min(3, Math.max(0.5, feat.scale + delta));
+  featSyncUI();
+  drawFeatured();
+}
+
+function featZoomSlider(val) {
+  feat.scale = parseFloat(val) / 100;
+  featSyncUI();
+  drawFeatured();
+}
+
+function featReset() {
+  feat.scale = 1; feat.ox = 0; feat.oy = 0;
+  featSyncUI();
+  drawFeatured();
+}
+
+// ── Featured canvas drag-to-pan ────────────────────────────────────────────
+(function () {
+  let dragging = false, lastX = 0, lastY = 0;
+
+  // Convert mouse event coords (screen px on the CSS-scaled canvas) → logical px
+  function toLogical(e, canvas) {
+    const rect  = canvas.getBoundingClientRect();
+    const scaleX = FEAT_W / rect.width;
+    const scaleY = FEAT_H / rect.height;
+    return {
+      x: (e.clientX - rect.left) * scaleX,
+      y: (e.clientY - rect.top)  * scaleY,
+    };
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const canvas = document.getElementById('c-featured');
+
+    canvas.addEventListener('mousedown', e => {
+      dragging = true;
+      const p = toLogical(e, canvas);
+      lastX = p.x; lastY = p.y;
+      e.preventDefault();
+    });
+
+    window.addEventListener('mousemove', e => {
+      if (!dragging) return;
+      const canvas = document.getElementById('c-featured');
+      const p = toLogical(e, canvas);
+      feat.ox += p.x - lastX;
+      feat.oy += p.y - lastY;
+      lastX = p.x; lastY = p.y;
+      drawFeatured();
+    });
+
+    window.addEventListener('mouseup', () => { dragging = false; });
+
+    // Scroll to zoom
+    canvas.addEventListener('wheel', e => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -0.05 : 0.05;
+      featZoom(delta);
+    }, { passive: false });
+
+    // Touch drag support
+    let lastTouchX = 0, lastTouchY = 0;
+    canvas.addEventListener('touchstart', e => {
+      if (e.touches.length === 1) {
+        const rect = canvas.getBoundingClientRect();
+        lastTouchX = (e.touches[0].clientX - rect.left) * (FEAT_W / rect.width);
+        lastTouchY = (e.touches[0].clientY - rect.top)  * (FEAT_H / rect.height);
+      }
+    }, { passive: true });
+
+    canvas.addEventListener('touchmove', e => {
+      if (e.touches.length === 1) {
+        const rect = canvas.getBoundingClientRect();
+        const tx = (e.touches[0].clientX - rect.left) * (FEAT_W / rect.width);
+        const ty = (e.touches[0].clientY - rect.top)  * (FEAT_H / rect.height);
+        feat.ox += tx - lastTouchX;
+        feat.oy += ty - lastTouchY;
+        lastTouchX = tx; lastTouchY = ty;
+        drawFeatured();
+        e.preventDefault();
+      }
+    }, { passive: false });
+  });
+}());
 
 function drawThumbnail() {
   const id = 'c-thumbnail', w = 416, h = 332, ctx = CTX[id];
@@ -521,6 +688,7 @@ async function searchImages() {
         document.querySelectorAll('.thumb').forEach(t => t.classList.remove('selected'));
         div.classList.add('selected');
         photoImg = await loadImage(item.preview);
+        feat.scale = 1; feat.ox = 0; feat.oy = 0; featSyncUI();
         drawAll();
       };
       grid.appendChild(div);
@@ -536,7 +704,11 @@ function handleUpload(e) {
   const file = e.target.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = async ev => { photoImg = await loadImage(ev.target.result); drawAll(); };
+  reader.onload = async ev => {
+    photoImg = await loadImage(ev.target.result);
+    feat.scale = 1; feat.ox = 0; feat.oy = 0; featSyncUI();
+    drawAll();
+  };
   reader.readAsDataURL(file);
 }
 
