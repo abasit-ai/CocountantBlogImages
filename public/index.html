@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CoCountant — Blog Preview Generator</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:         #0b1624;
+    --surface:    #112036;
+    --surface2:   #162840;
+    --border:     rgba(255,255,255,0.08);
+    --border-hi:  rgba(255,255,255,0.16);
+    --text:       #f0f4f8;
+    --text-muted: #7a9bb8;
+    --text-dim:   #4a6a88;
+    --accent:     #2B8CEE;
+    --success:    #22c55e;
+    --error:      #f87171;
+    --radius:     10px;
+    --radius-sm:  6px;
+  }
+
+  html, body { height: 100%; }
+
+  body {
+    font-family: 'Outfit', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  header {
+    flex-shrink: 0;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 32px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+  }
+
+  header h1 {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--text-muted);
+  }
+
+  .main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .sidebar {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 24px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+  }
+
+  .section-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    padding-bottom: 9px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 10px;
+  }
+
+  textarea, input[type="text"] {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-family: 'Outfit', sans-serif;
+    font-size: 14px;
+    padding: 9px 12px;
+    outline: none;
+    transition: border-color 0.15s;
+    line-height: 1.5;
+  }
+  textarea { min-height: 80px; resize: vertical; }
+  textarea:focus, input[type="text"]:focus { border-color: var(--accent); }
+  ::placeholder { color: var(--text-dim); }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 9px 16px;
+    border-radius: var(--radius-sm);
+    font-family: 'Outfit', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    white-space: nowrap;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { opacity: 0.85; }
+  .btn-outline { background: transparent; border: 1px solid var(--border-hi); color: var(--text); }
+  .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-full { width: 100%; }
+
+  .search-row { display: flex; gap: 8px; }
+  .search-row input { flex: 1; min-width: 0; }
+
+  .status { font-size: 12px; color: var(--text-muted); min-height: 18px; padding: 4px 0; }
+  .status.error { color: var(--error); }
+  .status.ok    { color: var(--success); }
+
+  .results-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+
+  .thumb {
+    cursor: pointer;
+    border-radius: 4px;
+    overflow: hidden;
+    border: 2px solid transparent;
+    aspect-ratio: 4/3;
+    background: var(--surface2);
+    transition: border-color 0.15s;
+    position: relative;
+  }
+  .thumb:hover { border-color: var(--border-hi); }
+  .thumb.selected { border-color: var(--accent); }
+  .thumb.selected::after {
+    content: '✓';
+    position: absolute;
+    top: 3px; right: 4px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 9px;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700;
+  }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  .content {
+    overflow-y: auto;
+    padding: 24px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+  }
+
+  .canvas-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+
+  .canvas-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .badge {
+    background: rgba(43,140,238,0.15);
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 9px;
+    border-radius: 20px;
+  }
+
+  .canvas-meta span {
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .canvas-wrap {
+    width: 100%;
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1px solid var(--border);
+    background: #102138;
+    line-height: 0;
+  }
+
+  /* canvas fills wrap width; height driven by aspect-ratio set via JS */
+  .canvas-wrap canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  .canvas-wrap.fixed-width {
+    display: inline-block;
+    width: 416px;
+    max-width: 100%;
+  }
+
+  .source-badge {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 20px;
+    letter-spacing: 0.04em;
+  }
+  .source-badge.unsplash { background: rgba(255,255,255,0.08); color: #e0e0e0; }
+  .source-badge.pexels   { background: rgba(5,187,117,0.15);  color: #05bb75; }
+
+  .thumb-source {
+    position: absolute;
+    bottom: 3px; left: 4px;
+    font-size: 8px;
+    font-weight: 600;
+    padding: 1px 5px;
+    border-radius: 3px;
+    letter-spacing: 0.03em;
+    opacity: 0.85;
+  }
+  .thumb-source.unsplash { background: rgba(0,0,0,0.55); color: #fff; }
+  .thumb-source.pexels   { background: rgba(5,187,117,0.8); color: #fff; }
+
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Blog Preview Generator</h1>
+</header>
+
+<div class="main">
+
+  <aside class="sidebar">
+
+    <div>
+      <div class="section-label">Blog Headline</div>
+      <textarea id="headline" placeholder="Enter your blog post headline...">How can a business choose the right outsourced bookkeeping provider?</textarea>
+    </div>
+
+    <div>
+      <div class="section-label">Search Free Images</div>
+      <div class="search-row">
+        <input type="text" id="search-q" placeholder="e.g. business woman laptop" />
+        <button class="btn btn-primary" onclick="searchImages()">Search</button>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:6px;">
+        <span class="source-badge unsplash">Unsplash</span>
+        <span class="source-badge pexels">Pexels</span>
+        <span style="font-size:11px;color:var(--text-dim);align-self:center;">Free to use</span>
+      </div>
+      <div class="status" id="search-status"></div>
+      <div class="results-grid" id="results"></div>
+    </div>
+
+    <div>
+      <div class="section-label">Or Upload Image</div>
+      <label for="upload-img" class="btn btn-outline btn-full" style="cursor:pointer;">
+        Upload local image
+      </label>
+      <input type="file" id="upload-img" accept="image/*" style="display:none;" onchange="handleUpload(event)" />
+    </div>
+
+  </aside>
+
+  <div class="content">
+
+    <div>
+      <div class="canvas-header">
+        <div class="canvas-meta">
+          <span class="badge">1200 × 628 px</span>
+          <span>Blog preview image</span>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-outline" onclick="drawAll()">Refresh</button>
+          <button class="btn btn-primary" onclick="dl('c-preview','cocountant-blog-preview.png')">Download PNG</button>
+        </div>
+      </div>
+      <div class="canvas-wrap">
+        <canvas id="c-preview"></canvas>
+      </div>
+    </div>
+
+    <div>
+      <div class="canvas-header">
+        <div class="canvas-meta">
+          <span class="badge">810 × 267 px</span>
+          <span>Featured image — photo only</span>
+        </div>
+        <button class="btn btn-primary" onclick="dl('c-featured','cocountant-featured.png')">Download PNG</button>
+      </div>
+      <div class="canvas-wrap">
+        <canvas id="c-featured"></canvas>
+      </div>
+    </div>
+
+    <div>
+      <div class="canvas-header">
+        <div class="canvas-meta">
+          <span class="badge">416 × 332 px</span>
+          <span>Thumbnail image — photo only</span>
+        </div>
+        <button class="btn btn-primary" onclick="dl('c-thumbnail','cocountant-thumbnail.png')">Download PNG</button>
+      </div>
+      <div class="canvas-wrap fixed-width">
+        <canvas id="c-thumbnail"></canvas>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// Auto-detect environment — works locally AND on Vercel with no changes needed
+const PROXY_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  ? 'http://localhost:3000'
+  : '';
+
+const DPR = 2;
+const BG  = '#102138';
+const PAD = 64;
+
+// Preview photo slot (logical px)
+const PH_W = 416, PH_H = 332;
+const PH_X = 1200 - PAD - PH_W; // 720
+const PH_Y = Math.round((628 - PH_H) / 2); // 148
+
+let logoImg  = null;
+let photoImg = null;
+
+// Canvas specs
+const SPECS = [
+  { id: 'c-preview',   w: 1200, h: 628 },
+  { id: 'c-featured',  w: 810,  h: 267 },
+  { id: 'c-thumbnail', w: 416,  h: 332 },
+];
+
+// One context per canvas, set up once
+const CTX = {};
+
+function setupCanvases() {
+  SPECS.forEach(({ id, w, h }) => {
+    const el = document.getElementById(id);
+    // Physical size = logical × DPR
+    el.width  = w * DPR;
+    el.height = h * DPR;
+    // CSS: width fills container, height follows aspect ratio automatically
+    el.style.aspectRatio = w + ' / ' + h;
+    const ctx = el.getContext('2d');
+    ctx.scale(DPR, DPR); // applied ONCE — never called again
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    CTX[id] = ctx;
+  });
+}
+
+function clear(id) {
+  const s = SPECS.find(c => c.id === id);
+  CTX[id].clearRect(0, 0, s.w, s.h);
+}
+
+function coverDraw(ctx, img, x, y, w, h) {
+  const iw = img.naturalWidth  || img.width;
+  const ih = img.naturalHeight || img.height;
+  const sc = Math.max(w / iw, h / ih);
+  const dw = iw * sc, dh = ih * sc;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, w, h);
+  ctx.clip();
+  ctx.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+  ctx.restore();
+}
+
+function placeholder(ctx, x, y, w, h) {
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,255,255,0.05)';
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = 'rgba(255,255,255,0.13)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  ctx.font = '15px "Outfit",sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('Search or upload an image to place here', x + w / 2, y + h / 2);
+  ctx.restore();
+}
+
+function wrapText(ctx, text, x, maxW, cy, lh) {
+  const words = text.split(' ');
+  let line = '', lines = [];
+  for (const w of words) {
+    const t = line ? line + ' ' + w : w;
+    if (ctx.measureText(t).width > maxW && line) { lines.push(line); line = w; }
+    else line = t;
+  }
+  if (line) lines.push(line);
+  const sy = cy - (lines.length * lh) / 2 + lh * 0.78;
+  lines.forEach((l, i) => ctx.fillText(l, x, sy + i * lh));
+}
+
+// ── Draw ───────────────────────────────────────────────────────────────────
+
+function drawAll() { drawPreview(); drawFeatured(); drawThumbnail(); }
+
+function drawPreview() {
+  const id = 'c-preview', w = 1200, h = 628, ctx = CTX[id];
+  const headline = document.getElementById('headline').value.trim() || 'Your headline here';
+  clear(id);
+
+  // Background
+  ctx.fillStyle = BG;
+  ctx.fillRect(0, 0, w, h);
+
+  // Logo
+  if (logoImg) {
+    const lh = 40, lw = Math.round((329 / 64) * lh);
+    ctx.drawImage(logoImg, PAD, 42, lw, lh);
+  }
+
+  // Headline text
+  const fs = headline.length > 90 ? 40 : headline.length > 65 ? 46 : 52;
+  ctx.save();
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '500 ' + fs + 'px "Outfit",sans-serif';
+  wrapText(ctx, headline, PAD, PH_X - PAD - 48, h / 2 + 14, fs * 1.28);
+  ctx.restore();
+
+  // Photo
+  if (photoImg) coverDraw(ctx, photoImg, PH_X, PH_Y, PH_W, PH_H);
+  else placeholder(ctx, PH_X, PH_Y, PH_W, PH_H);
+}
+
+function drawFeatured() {
+  const id = 'c-featured', w = 810, h = 267, ctx = CTX[id];
+  clear(id);
+  if (photoImg) coverDraw(ctx, photoImg, 0, 0, w, h);
+  else placeholder(ctx, 0, 0, w, h);
+}
+
+function drawThumbnail() {
+  const id = 'c-thumbnail', w = 416, h = 332, ctx = CTX[id];
+  clear(id);
+  if (photoImg) coverDraw(ctx, photoImg, 0, 0, w, h);
+  else placeholder(ctx, 0, 0, w, h);
+}
+
+// ── Logo ───────────────────────────────────────────────────────────────────
+
+const LOGO_SVG = `<svg width="329" height="64" viewBox="0 0 329 64" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0.193359 37.1863V40.7235C0.193359 45.5194 2.13465 50.1188 5.59016 53.51C9.04568 56.9011 13.7324 58.8063 18.6192 58.8063V37.1863H0.193359Z" fill="#93BFEC"/><path d="M37.4224 21.9194H18.627V58.8005H37.4224V21.9194Z" fill="#2B8CEE"/><path d="M37.4189 3.47369H55.5663V40.583C55.5663 45.4132 53.6577 50.0456 50.2605 53.461C46.8632 56.8765 42.2234 58.7953 37.4189 58.7953V3.47369Z" fill="#1122D5"/><path d="M9.41813 22.1556C14.6164 22.1556 18.8304 18.0201 18.8304 12.9186C18.8304 7.81713 14.6164 3.68158 9.41813 3.68158C4.21988 3.68158 0.00585938 7.81713 0.00585938 12.9186C0.00585938 18.0201 4.21988 22.1556 9.41813 22.1556Z" fill="#93BFEC"/><path d="M207.195 25.0492V38.335C206.955 39.4439 206.304 40.4262 205.369 41.0925C204.435 41.7588 203.281 42.0619 202.132 41.9433C200.983 41.8248 199.919 41.2929 199.146 40.4504C198.373 39.6078 197.945 38.5143 197.945 37.3806V25.0492H192.258V39.1945C192.257 41.3436 193.091 43.4122 194.591 44.9782C196.091 46.5442 198.144 47.4896 200.33 47.6215C200.514 47.6323 200.699 47.6378 200.883 47.6378C202.071 47.641 203.247 47.4016 204.337 46.9348C205.426 46.4681 206.404 45.7841 207.209 44.9264V47.6378H212.982V25.0492H207.195Z" fill="white"/><path d="M230.192 25.0655H230.17C229.986 25.0547 229.806 25.0492 229.631 25.0492C228.443 25.046 227.267 25.2854 226.178 25.7521C225.089 26.2189 224.11 26.9029 223.305 27.7606V25.0492H217.532V47.6188H223.305V35.2684C223.305 34.0647 223.793 32.9102 224.66 32.059C225.528 31.2078 226.705 30.7296 227.932 30.7296C228.081 30.7296 228.227 30.7296 228.371 30.7513C228.874 30.8033 229.365 30.9351 229.825 31.1417C229.954 31.2014 230.079 31.2637 230.203 31.3315C230.328 31.3993 230.444 31.4752 230.56 31.5538C231.077 31.9097 231.516 32.3644 231.85 32.8906C231.958 33.0695 232.226 33.6226 232.367 34.0321C232.467 34.4333 232.549 35.2928 232.549 35.2928V47.6188H238.226V33.4844C238.226 31.3428 237.396 29.2815 235.904 27.7182C234.412 26.1549 232.37 25.2066 230.192 25.0655Z" fill="white"/><path d="M155.75 35.7391C154.242 38.8723 151.128 41.0226 147.531 41.0226C142.456 41.0226 138.341 36.7437 138.341 31.4656C138.341 26.1874 142.456 21.9085 147.531 21.9085C151.25 21.9085 154.449 24.2082 155.896 27.5124H162.483C160.781 20.4858 154.624 15.2783 147.287 15.2783C138.637 15.2783 131.627 22.5139 131.627 31.4384C131.627 40.3629 138.637 47.5985 147.287 47.5985C154.482 47.5985 160.571 42.5757 162.383 35.7391H155.75Z" fill="white"/><path d="M95.191 35.7391C93.6828 38.8723 90.5668 41.0226 86.9693 41.0226C81.894 41.0226 77.779 36.7437 77.779 31.4656C77.779 26.1874 81.894 21.9085 86.9693 21.9085C90.6886 21.9085 93.8876 24.2082 95.3377 27.5124H101.921C100.222 20.4858 94.0647 15.2783 86.7258 15.2783C78.0751 15.2783 71.0654 22.5139 71.0654 31.4384C71.0654 40.3629 78.0751 47.5985 86.7258 47.5985C93.9347 47.5985 100.009 42.5757 101.824 35.7391H95.191Z" fill="white"/><path d="M116.771 24.9849C114.492 24.9844 112.264 25.647 110.368 26.8889C108.473 28.1309 106.996 29.8964 106.123 31.9622C105.25 34.0279 105.022 36.3012 105.466 38.4944C105.911 40.6877 107.008 42.7024 108.619 44.2838C110.231 45.8652 112.284 46.9422 114.519 47.3786C116.755 47.8151 119.072 47.5914 121.177 46.7358C123.283 45.8801 125.083 44.4311 126.349 42.5718C127.616 40.7126 128.291 38.5267 128.291 36.2905C128.291 33.2925 127.078 30.4173 124.917 28.2972C122.757 26.1771 119.827 24.9856 116.771 24.9849ZM116.771 42.0302C115.614 42.0302 114.483 41.6935 113.521 41.0629C112.559 40.4322 111.809 39.5358 111.366 38.487C110.923 37.4382 110.808 36.2841 111.033 35.1707C111.259 34.0574 111.816 33.0347 112.634 32.2319C113.453 31.4292 114.495 30.8826 115.63 30.6611C116.765 30.4397 117.941 30.5533 119.01 30.9877C120.079 31.4222 120.992 32.1578 121.635 33.1017C122.278 34.0456 122.621 35.1553 122.621 36.2905C122.619 37.8116 122.002 39.2697 120.905 40.3448C119.808 41.4198 118.321 42.024 116.771 42.0247V42.0302Z" fill="white"/><path d="M177.402 24.9849C175.123 24.9844 172.895 25.647 170.999 26.8889C169.104 28.1309 167.627 29.8964 166.754 31.9622C165.881 34.0279 165.653 36.3012 166.097 38.4944C166.541 40.6877 167.639 42.7024 169.25 44.2838C170.861 45.8652 172.915 46.9422 175.15 47.3786C177.385 47.8151 179.703 47.5914 181.808 46.7358C183.914 45.8801 185.714 44.4311 186.98 42.5718C188.246 40.7126 188.922 38.5267 188.922 36.2905C188.922 33.2925 187.709 30.4173 185.548 28.2972C183.388 26.1771 180.458 24.9856 177.402 24.9849ZM177.402 42.0302C176.245 42.0302 175.114 41.6935 174.152 41.0629C173.19 40.4322 172.44 39.5358 171.997 38.487C171.554 37.4382 171.438 36.2841 171.664 35.1707C171.89 34.0574 172.447 33.0347 173.265 32.2319C174.083 31.4292 175.126 30.8826 176.261 30.6611C177.395 30.4397 178.572 30.5533 179.641 30.9877C180.71 31.4222 181.623 32.1578 182.266 33.1017C182.909 34.0456 183.252 35.1553 183.252 36.2905C183.25 37.8116 182.633 39.2697 181.536 40.3448C180.439 41.4198 178.952 42.024 177.402 42.0247V42.0302Z" fill="white"/><path d="M257.934 30.5532V25.009H252.123V17.996H246.345V25.009H241.466V30.5532H246.345V41.0307C246.345 42.7704 247.049 44.4389 248.303 45.669C249.557 46.8992 251.257 47.5903 253.031 47.5903H257.934V41.9185H254.256C253.977 41.9185 253.7 41.8644 253.441 41.7594C253.182 41.6543 252.948 41.5003 252.75 41.3062C252.552 41.1121 252.395 40.8816 252.288 40.6279C252.181 40.3743 252.126 40.1024 252.126 39.8279V30.5532H257.934Z" fill="white"/><path d="M283.799 25.2032H278.082V27.5698C276.993 26.0997 274.425 25.1916 272.454 25.2005C270.483 25.2094 268.548 25.7221 266.84 26.6881C265.128 27.6628 263.705 29.0583 262.71 30.737C261.703 32.4308 261.172 34.3566 261.172 36.3176C261.172 38.2786 261.703 40.2045 262.71 41.8982C263.704 43.5783 265.127 44.9748 266.84 45.9498C268.558 46.9385 270.518 47.4517 272.51 47.4347C273.712 47.441 274.9 47.175 275.981 46.6575C277.07 46.1429 277.772 45.5251 278.088 44.804V47.4347H283.804V25.2032H283.799ZM278.142 36.319C278.164 37.0594 278.036 37.7969 277.765 38.4883C277.494 39.1797 277.085 39.8114 276.563 40.3465C276.05 40.8767 275.429 41.2949 274.739 41.5737C274.05 41.8526 273.309 41.9859 272.564 41.965C271.814 41.9831 271.067 41.8487 270.372 41.5702C269.677 41.2916 269.048 40.875 268.525 40.3465C267.989 39.8187 267.567 39.1895 267.287 38.4972C267.006 37.8049 266.871 37.0638 266.891 36.319C266.872 35.5737 267.006 34.8324 267.287 34.1396C267.568 33.4469 267.989 32.8173 268.525 32.2888C269.049 31.7631 269.679 31.3495 270.374 31.0737C271.069 30.798 271.815 30.6661 272.564 30.6863C273.308 30.6638 274.048 30.7948 274.737 31.0709C275.426 31.3469 276.048 31.7618 276.563 32.2888C277.435 33.1737 277.976 34.3221 278.098 35.5471C278.12 35.7314 278.134 35.9183 278.139 36.1106C278.142 36.1801 278.142 36.2495 278.142 36.319Z" fill="white"/><path d="M300.518 25.0655H300.496C300.312 25.0547 300.132 25.0492 299.957 25.0492C298.769 25.046 297.593 25.2854 296.504 25.7521C295.415 26.2189 294.437 26.9029 293.632 27.7606V25.0492H287.858V47.6188H293.632V35.2684C293.632 34.0647 294.119 32.9102 294.986 32.059C295.854 31.2078 297.031 30.7296 298.258 30.7296C298.407 30.7296 298.553 30.7296 298.697 30.7513C299.2 30.8033 299.365 30.9351 299.825 31.1417C299.954 31.2014 300.079 31.2637 300.203 31.3315C300.328 31.3993 300.444 31.4752 300.56 31.5538C301.077 31.9097 301.516 32.3644 301.85 32.8906C301.958 33.0695 302.146 33.4355 302.298 33.8097C302.42 34.2273 302.503 34.8559 302.549 35.2928V47.6188H308.552V33.4844C308.552 31.3428 307.722 29.2815 306.23 27.7182C304.738 26.1549 302.696 25.2066 300.518 25.0655Z" fill="white"/><path d="M328.784 30.5389V24.9947H322.989V17.8486H317.205V24.9947H312.312V30.5389H317.191V41.0164C317.192 42.7564 317.897 44.4248 319.151 45.6549C320.406 46.885 322.106 47.576 323.88 47.576H328.784V41.9042H325.103C324.823 41.9042 324.546 41.8501 324.288 41.745C324.03 41.6399 323.795 41.4859 323.597 41.2917C323.4 41.0976 323.243 40.8671 323.136 40.6134C323.029 40.3598 322.975 40.088 322.975 39.8136V30.5389H328.784Z" fill="white"/></svg>`;
+
+function loadLogoImage() {
+  return new Promise(resolve => {
+    const blob = new Blob([LOGO_SVG], { type: 'image/svg+xml' });
+    const url  = URL.createObjectURL(blob);
+    const img  = new Image();
+    img.onload  = () => { logoImg = img; URL.revokeObjectURL(url); resolve(); };
+    img.onerror = () => resolve();
+    img.src = url;
+  });
+}
+
+function loadImage(url) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload  = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
+}
+
+async function searchImages() {
+  const q = document.getElementById('search-q').value.trim();
+  const status = document.getElementById('search-status');
+  const grid   = document.getElementById('results');
+
+  if (!q) { status.textContent = 'Enter a search query.'; status.className = 'status error'; return; }
+  status.textContent = 'Searching Unsplash & Pexels...'; status.className = 'status';
+  grid.innerHTML = '';
+
+  try {
+    const resp = await fetch(`${PROXY_URL}/api/search?query=${encodeURIComponent(q)}`);
+    const data = await resp.json();
+    if (!resp.ok) { status.textContent = `Error: ${data.error || resp.status}`; status.className = 'status error'; return; }
+    if (!data.results?.length) { status.textContent = 'No results found.'; return; }
+    status.textContent = `${data.results.length} results — click to select`;
+    status.className = 'status ok';
+    data.results.forEach(item => {
+      if (!item.preview) return;
+      const div = document.createElement('div');
+      div.className = 'thumb';
+      const img = document.createElement('img');
+      img.src = item.preview; img.loading = 'lazy'; img.alt = item.description || '';
+      div.appendChild(img);
+      const badge = document.createElement('span');
+      badge.className = 'thumb-source ' + (item.source || '').toLowerCase();
+      badge.textContent = item.source || '';
+      div.appendChild(badge);
+      div.onclick = async () => {
+        document.querySelectorAll('.thumb').forEach(t => t.classList.remove('selected'));
+        div.classList.add('selected');
+        photoImg = await loadImage(item.preview);
+        drawAll();
+      };
+      grid.appendChild(div);
+    });
+
+  } catch {
+    status.textContent = `Cannot reach proxy. Is it running at ${PROXY_URL}?`;
+    status.className = 'status error';
+  }
+}
+
+function handleUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async ev => { photoImg = await loadImage(ev.target.result); drawAll(); };
+  reader.readAsDataURL(file);
+}
+
+function dl(id, filename) {
+  const a = document.createElement('a');
+  a.download = filename;
+  a.href = document.getElementById(id).toDataURL('image/png');
+  a.click();
+}
+
+document.getElementById('headline').addEventListener('input', drawPreview);
+document.getElementById('search-q').addEventListener('keydown', e => { if (e.key === 'Enter') searchImages(); });
+
+setupCanvases();
+loadLogoImage().then(drawAll);
+</script>
+</body>
+</html>
